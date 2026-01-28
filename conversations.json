@@ -1,0 +1,9 @@
+{
+  "active_chat": "default",
+  "chats": {
+    "default": {
+      "title": "New Chat",
+      "history": []
+    }
+  }
+}
