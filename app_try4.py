@@ -1,4 +1,4 @@
-import os, json
+import os, json, uuid
 from flask import Flask, request, render_template_string
 from groq import Groq
 
@@ -20,8 +20,7 @@ else:
     }
 
 def get_active_chat():
-    chat_id = CONVERSATIONS["active_chat"]
-    return CONVERSATIONS["chats"][chat_id]
+    return CONVERSATIONS["chats"][CONVERSATIONS["active_chat"]]
 
 def save_conversations():
     with open(CONVO_FILE, "w", encoding="utf-8") as f:
@@ -32,238 +31,72 @@ MODEL = "llama-3.1-8b-instant"
 API_KEY = os.getenv("GROQ_API_KEY")
 
 if not API_KEY:
-    raise RuntimeError("GROQ_API_KEY not found. Set it first.")
+    raise RuntimeError("GROQ_API_KEY not found")
 
 client = Groq(api_key=API_KEY)
 app = Flask(__name__)
 
-HISTORY_FILE = "chat_history.json"
-
-# ================= LOAD CHAT HISTORY =================
-if os.path.exists(HISTORY_FILE):
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        CHAT_HISTORY = json.load(f)
-else:
-    CHAT_HISTORY = []
-
-# ================= TEAM & PERSONAL DETAILS =================
-TEAM_PROFILE = {
-    "team_name": "Team Aether",
-    "grade": "Class 9",
-    "school": "Your School Name",
-
-    "members": [
-        {
-            "name": "Jayant Mangla",
-            "role": "Team Leader & Developer",
-            "strengths": ["Python", "Logic", "Problem Solving"],
-            "interests": ["AI", "Technology", "Gaming"],
-            "goal": "Become a software engineer"
-        },
-        {
-            "name": "Pranav Rayapati",
-            "role": "Backend & Research",
-            "strengths": ["Math", "Research", "AI Concepts"],
-            "interests": ["Science", "AI", "Space"],
-            "goal": "Work in Artificial Intelligence"
-        },
-        {
-            "name": "Pragnayan Kartik",
-            "role": "UI & Documentation",
-            "strengths": ["Design", "Creativity", "Presentation"],
-            "interests": ["Design", "Technology", "Creativity"],
-            "goal": "Create innovative technology solutions"
-        }
-    ]
+# ================= USER DETAILS =================
+USERS = {
+    "jayant": {
+        "name": "Jayant Mangla",
+        "technical_strengths": ["Python basics", "Logical thinking", "Working with AI"],
+        "goal": "Learn AI and programming fundamentals"
+    },
+    "pranav": {
+        "name": "Pranav Rayapati",
+        "technical_strengths": ["Problem solving", "Basic coding"],
+        "goal": "Improve coding and reasoning skills"
+    },
+    "pragnayan": {
+        "name": "Pragnayan Kartik",
+        "technical_strengths": ["Research", "Creativity"],
+        "goal": "Explore AI and future technology"
+    }
 }
 
 # ================= AI FUNCTION =================
 def ask_llm(user_input):
+    chat = get_active_chat()
+
     members_text = "\n".join([
-        f"- {m['name']} ({m['role']}): strengths in {', '.join(m['strengths'])}, "
-        f"interests in {', '.join(m['interests'])}, goal: {m['goal']}"
-        for m in TEAM_PROFILE["members"]
+        f"- {u['name']}: {', '.join(u['technical_strengths'])}, Goal: {u['goal']}"
+        for u in USERS.values()
     ])
 
     system_prompt = f"""
-You are a TEAM AI ASSISTANT built as a Class 9 school project.
-
-Team Name: {TEAM_PROFILE['team_name']}
-Grade: {TEAM_PROFILE['grade']}
-School: {TEAM_PROFILE['school']}
+You are Aether, an AI assistant built as a Class 9 school project.
 
 Team Members:
 {members_text}
 
 Rules:
-- You know details of all three members
-- If asked about a member, explain their details
-- If asked who made you, mention all team members
-- Be polite, clear, and helpful like ChatGPT
+- Jayant Mangla is NOT the team leader
+- Use only given data
+- Do not invent information
+- Be polite and clear
 """
 
     messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(CHAT_HISTORY)
+    messages.extend(chat["history"])
     messages.append({"role": "user", "content": user_input})
 
     completion = client.chat.completions.create(
         model=MODEL,
         messages=messages,
         temperature=0.7,
-        max_tokens=300
+        max_tokens=400
     )
 
     reply = completion.choices[0].message.content
 
-    CHAT_HISTORY.append({"role": "user", "content": user_input})
-    CHAT_HISTORY.append({"role": "assistant", "content": reply})
+    chat["history"].append({"role": "user", "content": user_input})
+    chat["history"].append({"role": "assistant", "content": reply})
+    save_conversations()
 
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(CHAT_HISTORY, f, indent=2)
+    return reply
 
-# ================= HTML (WHITE CHATGPT STYLE) =================
-HTML_PAGE = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Team AI Assistant</title>
-<style>
-body {
-  margin: 0;
-  background: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  color: #111;
-}
-
-.header {
-  padding: 16px;
-  border-bottom: 1px solid #e5e5e5;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.chat-container {
-  max-width: 850px;
-  margin: auto;
-  padding: 20px;
-  padding-bottom: 140px;
-}
-
-.message {
-  display: flex;
-  margin: 18px 0;
-}
-
-.user { justify-content: flex-end; }
-.ai { justify-content: flex-start; }
-
-.bubble {
-  max-width: 70%;
-  padding: 14px 16px;
-  border-radius: 14px;
-  line-height: 1.6;
-  font-size: 15px;
-  white-space: pre-wrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
-
-.user .bubble {
-  background: #0b5cff;
-  color: white;
-  border-bottom-right-radius: 4px;
-}
-
-.ai .bubble {
-  background: #f3f3f3;
-  border-bottom-left-radius: 4px;
-}
-
-.input-area {
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  background: #ffffff;
-  border-top: 1px solid #e5e5e5;
-  padding: 16px;
-}
-
-.input-box {
-  max-width: 850px;
-  margin: auto;
-  display: flex;
-  gap: 10px;
-}
-
-textarea {
-  flex: 1;
-  height: 55px;
-  border-radius: 12px;
-  border: 1px solid #dcdcdc;
-  padding: 12px 14px;
-  font-size: 15px;
-  resize: none;
-}
-
-textarea:focus {
-  border-color: #0b5cff;
-  outline: none;
-}
-
-button {
-  padding: 0 20px;
-  border-radius: 12px;
-  border: none;
-  background: #0b5cff;
-  color: white;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
-</style>
-</head>
-
-<body>
-
-<div class="header">
-🤖 Team Aether AI Assistant — Class 9 Project
-</div>
-
-<div class="chat-container" id="chat">
-{% for m in history %}
-  <div class="message {{ 'user' if m.role == 'user' else 'ai' }}">
-    <div class="bubble">{{ m.content }}</div>
-  </div>
-{% endfor %}
-</div>
-
-<div class="input-area">
-  <form method="post" class="input-box">
-    <textarea id="msg" name="message" placeholder="Message Team AI..."></textarea>
-    <button type="submit">Send</button>
-  </form>
-</div>
-
-<script>
-const textarea = document.getElementById("msg");
-
-// Enter = Send | Shift+Enter = New line
-textarea.addEventListener("keydown", function(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    textarea.form.submit();
-  }
-});
-
-// Auto scroll to bottom
-window.scrollTo(0, document.body.scrollHeight);
-</script>
-
-</body>
-</html>
-"""
-
-# ================= ROUTE =================
+# ================= ROUTES =================
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
@@ -271,11 +104,102 @@ def home():
         if msg.strip():
             ask_llm(msg)
 
-    return render_template_string(HTML_PAGE, history=CHAT_HISTORY)
+    chat = get_active_chat()
+    return render_template_string(
+        HTML_PAGE,
+        history=chat["history"],
+        chats=CONVERSATIONS["chats"],
+        active=CONVERSATIONS["active_chat"]
+    )
+
+@app.route("/new", methods=["POST"])
+def new_chat():
+    cid = str(uuid.uuid4())[:8]
+    CONVERSATIONS["chats"][cid] = {
+        "title": "New Chat",
+        "history": []
+    }
+    CONVERSATIONS["active_chat"] = cid
+    save_conversations()
+    return ("", 204)
+
+@app.route("/switch/<cid>", methods=["POST"])
+def switch_chat(cid):
+    if cid in CONVERSATIONS["chats"]:
+        CONVERSATIONS["active_chat"] = cid
+        save_conversations()
+    return ("", 204)
+
+# ================= HTML =================
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Aether AI</title>
+<style>
+body{margin:0;font-family:Arial}
+.app{display:flex;height:100vh}
+.sidebar{width:260px;background:#f7f7f8;padding:12px;border-right:1px solid #ddd}
+.new{width:100%;padding:10px;margin-bottom:10px;border:none;background:#0b5cff;color:#fff;border-radius:8px}
+.chat-btn{width:100%;padding:8px;border:none;background:none;text-align:left;border-radius:6px}
+.chat-btn.active{background:#e5e7eb}
+.main{flex:1;display:flex;flex-direction:column}
+.header{padding:14px;border-bottom:1px solid #ddd;text-align:center;font-weight:bold}
+.chat{flex:1;padding:20px;overflow-y:auto}
+.msg{display:flex;margin:10px 0}
+.user{justify-content:flex-end}
+.ai{justify-content:flex-start}
+.bubble{padding:12px;border-radius:12px;max-width:70%}
+.user .bubble{background:#0b5cff;color:#fff}
+.ai .bubble{background:#f3f3f3}
+.input{border-top:1px solid #ddd;padding:14px}
+form{display:flex;gap:10px}
+textarea{flex:1;padding:10px;border-radius:10px}
+button{padding:0 20px;border:none;background:#0b5cff;color:#fff;border-radius:10px}
+@media(max-width:768px){.sidebar{display:none}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sidebar">
+    <form method="post" action="/new">
+      <button class="new">+ New Chat</button>
+    </form>
+    {% for cid,c in chats.items() %}
+      <form method="post" action="/switch/{{cid}}">
+        <button class="chat-btn {% if cid==active %}active{% endif %}">
+          {{ c.title }}
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+
+  <div class="main">
+    <div class="header">🤖 Aether AI — Class 9 Project</div>
+
+    <div class="chat">
+      {% for m in history %}
+        <div class="msg {{'user' if m.role=='user' else 'ai'}}">
+          <div class="bubble">{{ m.content }}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="input">
+      <form method="post">
+        <textarea name="message" placeholder="Message Aether..."></textarea>
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+"""
 
 # ================= RUN =================
 if __name__ == "__main__":
-        port = int(os.environ.get("PORT", 5000))
-        app.run(host="0.0.0.0", port=port)
-
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
