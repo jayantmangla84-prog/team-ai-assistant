@@ -2,6 +2,23 @@ import os, json
 from flask import Flask, request, render_template_string
 from groq import Groq
 
+# ================= MULTI-CHAT STORAGE =================
+CONVO_FILE = "conversations.json"
+
+if os.path.exists(CONVO_FILE):
+    with open(CONVO_FILE, "r", encoding="utf-8") as f:
+        CONVERSATIONS = json.load(f)
+else:
+    CONVERSATIONS = {
+        "active_chat": "default",
+        "chats": {
+            "default": {
+                "title": "New Chat",
+                "history": []
+            }
+        }
+    }
+
 # ================= BASIC CONFIG =================
 MODEL = "llama-3.1-8b-instant"
 API_KEY = os.getenv("GROQ_API_KEY")
@@ -252,3 +269,4 @@ def home():
 if __name__ == "__main__":
         port = int(os.environ.get("PORT", 5000))
         app.run(host="0.0.0.0", port=port)
+
