@@ -19,6 +19,14 @@ else:
         }
     }
 
+def get_active_chat():
+    chat_id = CONVERSATIONS["active_chat"]
+    return CONVERSATIONS["chats"][chat_id]
+
+def save_conversations():
+    with open(CONVO_FILE, "w", encoding="utf-8") as f:
+        json.dump(CONVERSATIONS, f, indent=2)
+
 # ================= BASIC CONFIG =================
 MODEL = "llama-3.1-8b-instant"
 API_KEY = os.getenv("GROQ_API_KEY")
@@ -269,4 +277,5 @@ def home():
 if __name__ == "__main__":
         port = int(os.environ.get("PORT", 5000))
         app.run(host="0.0.0.0", port=port)
+
 
