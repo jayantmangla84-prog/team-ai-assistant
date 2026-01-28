@@ -12,10 +12,7 @@ else:
     CONVERSATIONS = {
         "active_chat": "default",
         "chats": {
-            "default": {
-                "title": "New Chat",
-                "history": []
-            }
+            "default": {"title": "New Chat", "history": []}
         }
     }
 
@@ -26,7 +23,7 @@ def save_conversations():
     with open(CONVO_FILE, "w", encoding="utf-8") as f:
         json.dump(CONVERSATIONS, f, indent=2)
 
-# ================= MEMORY STORAGE =================
+# ================= MEMORY =================
 MEMORY_FILE = "memory.json"
 
 if os.path.exists(MEMORY_FILE):
@@ -49,7 +46,7 @@ if not API_KEY:
 client = Groq(api_key=API_KEY)
 app = Flask(__name__)
 
-# ================= USER DETAILS (FINAL & VERIFIED) =================
+# ================= USER DETAILS =================
 USERS = {
     "jayant": {
         "name": "Jayant Mangla",
@@ -76,7 +73,7 @@ USERS = {
         "goal": "Improve coding and reasoning skills"
     },
     "pragnayan": {
-        "name": "Pragnan Kartik",
+        "name": "Pragnayan Kartik",
         "education": "Class 9",
         "school": "Your School Name",
         "location": "India",
@@ -93,8 +90,8 @@ USERS = {
 def ask_llm(user_input):
     chat = get_active_chat()
 
-    # Auto chat title
-    if chat["title"] == "New Chat" and user_input.strip():
+    # ✅ Auto title ONLY on first message
+    if chat["title"] == "New Chat" and len(chat["history"]) == 0:
         chat["title"] = user_input.strip()[:30]
 
     # Real memory
@@ -128,9 +125,9 @@ Memory:
 
 Rules:
 - Jayant Mangla is NOT the team leader
-- Use only the provided user details
+- Use only provided data
 - Do NOT invent information
-- Be polite, clear, and helpful
+- Be polite and helpful
 """
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -170,6 +167,12 @@ def home():
 
 @app.route("/new", methods=["POST"])
 def new_chat():
+    current = get_active_chat()
+
+    # ✅ Prevent multiple empty chats
+    if len(current["history"]) == 0:
+        return ("", 204)
+
     cid = str(uuid.uuid4())[:8]
     CONVERSATIONS["chats"][cid] = {"title": "New Chat", "history": []}
     CONVERSATIONS["active_chat"] = cid
@@ -192,11 +195,45 @@ HTML_PAGE = """
 <style>
 body{margin:0;font-family:-apple-system,Segoe UI,Arial}
 .app{display:flex;height:100vh}
-.sidebar{width:260px;background:#f7f7f8;padding:12px;border-right:1px solid #ddd}
-.new{width:100%;padding:10px;margin-bottom:10px;border:none;background:#0b5cff;color:#fff;border-radius:8px;cursor:pointer}
-.chat-btn{width:100%;padding:8px;border:none;background:none;text-align:left;border-radius:6px;cursor:pointer}
-.chat-btn:hover{background:#e5e7eb}
-.chat-btn.active{background:#dbeafe}
+
+/* SIDEBAR */
+.sidebar{
+  width:260px;
+  background:#f3f4f6;
+  padding:12px;
+  border-right:1px solid #d1d5db
+}
+.new{
+  width:100%;
+  padding:12px;
+  margin-bottom:14px;
+  border:none;
+  background:#0b5cff;
+  color:#fff;
+  border-radius:10px;
+  font-weight:600;
+  cursor:pointer
+}
+.chat-btn{
+  width:100%;
+  padding:10px;
+  margin-bottom:6px;
+  border:1px solid #e5e7eb;
+  background:#ffffff;
+  color:#111;
+  text-align:left;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px
+}
+.chat-btn:hover{background:#f1f5f9}
+.chat-btn.active{
+  background:#dbeafe;
+  border-color:#93c5fd;
+  font-weight:600
+}
+
+/* MAIN */
 .main{flex:1;display:flex;flex-direction:column}
 .header{padding:14px;border-bottom:1px solid #ddd;text-align:center;font-weight:600}
 .typing{padding:8px 20px;color:#666;animation:blink 1.2s infinite}
@@ -211,19 +248,20 @@ body{margin:0;font-family:-apple-system,Segoe UI,Arial}
 form{display:flex;gap:10px}
 textarea{flex:1;padding:10px;border-radius:10px}
 button{padding:0 20px;border:none;background:#0b5cff;color:#fff;border-radius:10px}
+
 @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
 @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 @media(max-width:768px){.sidebar{display:none}}
 </style>
 </head>
-<body>
 
+<body>
 <div class="app">
   <div class="sidebar">
     <form method="post" action="/new">
       <button class="new">+ New Chat</button>
     </form>
-    {% for cid,c in chats.items() %}
+    {% for cid,c in chats.items() if c.history %}
       <form method="post" action="/switch/{{cid}}">
         <button class="chat-btn {% if cid==active %}active{% endif %}">
           {{ c.title }}
@@ -252,29 +290,21 @@ button{padding:0 20px;border:none;background:#0b5cff;color:#fff;border-radius:10
 </div>
 
 <script>
-const form = document.querySelector(".input form");
-const textarea = form.querySelector("textarea");
-const typing = document.getElementById("typing");
-const chat = document.querySelector(".chat");
+const form=document.querySelector(".input form");
+const textarea=form.querySelector("textarea");
+const typing=document.getElementById("typing");
+const chat=document.querySelector(".chat");
 
-// Enter = Send | Shift+Enter = New line
-textarea.addEventListener("keydown", function(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
+textarea.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){
     e.preventDefault();
-    typing.style.display = "block";
+    typing.style.display="block";
     form.submit();
   }
 });
-
-// Show typing indicator on submit
-form.addEventListener("submit", () => {
-  typing.style.display = "block";
-});
-
-// Auto-scroll to bottom
-chat.scrollTop = chat.scrollHeight;
+form.addEventListener("submit",()=>typing.style.display="block");
+chat.scrollTop=chat.scrollHeight;
 </script>
-
 </body>
 </html>
 """
@@ -283,5 +313,3 @@ chat.scrollTop = chat.scrollHeight;
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
