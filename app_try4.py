@@ -76,7 +76,7 @@ USERS = {
         "goal": "Improve coding and reasoning skills"
     },
     "pragnayan": {
-        "name": "Pragnayan Kartik",
+        "name": "Pragnan Kartik",
         "education": "Class 9",
         "school": "Your School Name",
         "location": "India",
@@ -267,3 +267,4 @@ chat.scrollTop=chat.scrollHeight;
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
