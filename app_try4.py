@@ -252,11 +252,27 @@ button{padding:0 20px;border:none;background:#0b5cff;color:#fff;border-radius:10
 </div>
 
 <script>
-const form=document.querySelector(".input form");
-const typing=document.getElementById("typing");
-const chat=document.querySelector(".chat");
-form.addEventListener("submit",()=>{typing.style.display="block";});
-chat.scrollTop=chat.scrollHeight;
+const form = document.querySelector(".input form");
+const textarea = form.querySelector("textarea");
+const typing = document.getElementById("typing");
+const chat = document.querySelector(".chat");
+
+// Enter = Send | Shift+Enter = New line
+textarea.addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    typing.style.display = "block";
+    form.submit();
+  }
+});
+
+// Show typing indicator on submit
+form.addEventListener("submit", () => {
+  typing.style.display = "block";
+});
+
+// Auto-scroll to bottom
+chat.scrollTop = chat.scrollHeight;
 </script>
 
 </body>
@@ -267,4 +283,5 @@ chat.scrollTop=chat.scrollHeight;
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
